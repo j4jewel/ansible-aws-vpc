@@ -9,7 +9,7 @@
 3. Create an IAM Role with Policy AmazonEC2FullAccess and attach it to the Ansible master instance.
 ---
 ---
-
+##### ec2-vpc.yml
 ```sh
 ---
 - name: Creating VPC
@@ -24,7 +24,7 @@
     private_subnet_1_cidr: 172.16.32.0/20
     instance_type: t2.micro
     image: ami-0b898040803850657
-    keypair: sdnew
+    keypair: jwl-pc
     exact_count: 1
 
   tasks:
@@ -254,5 +254,7 @@
           Name: DB-Server
         exact_count: "{{ exact_count }}"
 ```
+---
 
+##### Executing the playbook - # ansible-playbook ec2-vpc.yml
 
