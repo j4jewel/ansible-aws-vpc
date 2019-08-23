@@ -1,6 +1,14 @@
 # ansible-aws-vpc
-Playbook to create a VPC in AWS with public and private subnets
 
+##### The below playbook is used to deploy a infrastructure of Three Instances. One as Bastion, one as webserver and one for Database server. This playbook creates a Complete VPC with two Public subnets and one Private subnets(In different AZ). Creates a NAT gateway and allocate a new Elastic IP. Creates route tables and three Security groups. It will also deploy three instances in different AZ along with different Security groups. It is also idempotent
+---
+---
+### Prerequisite:
+1. Install Ansible on an ec2 Instance and setup it as Ansible-master
+2. Python boto library
+3. Create an IAM Role with Policy AmazonEC2FullAccess and attach it to the Ansible master instance.
+---
+---
 
 ```sh
 ---
@@ -14,6 +22,11 @@ Playbook to create a VPC in AWS with public and private subnets
     public_subnet_1_cidr: 172.16.0.0/20
     public_subnet_2_cidr:  172.16.16.0/20
     private_subnet_1_cidr: 172.16.32.0/20
+    instance_type: t2.micro
+    image: ami-0b898040803850657
+    keypair: sdnew
+    exact_count: 1
+
   tasks:
 
     - name: Creating VPC
@@ -24,8 +37,8 @@ Playbook to create a VPC in AWS with public and private subnets
         state:      "present"
       register: my_vpc
 
-    - name: Wait for 15 Seconds
-      wait_for: timeout=15
+    - name: Wait for 5 Seconds
+      wait_for: timeout=5
 
     - name: Set VPC ID in variable
       set_fact:
@@ -100,8 +113,8 @@ Playbook to create a VPC in AWS with public and private subnets
       set_fact:
         nat_gateway_az2_id: "{{ new_nat_gateway_az2.nat_gateway_id }}"
 
-    - name: Wait for 15 Seconds
-      wait_for: timeout=15
+    - name: Wait for 5 Seconds
+      wait_for: timeout=5
 
     - name: Set up public subnet route table
       ec2_vpc_route_table:
@@ -128,10 +141,10 @@ Playbook to create a VPC in AWS with public and private subnets
           - dest: "0.0.0.0/0"
             gateway_id: "{{ nat_gateway_az2_id }}"
 
-    - name: Creating Main Security Group
+    - name: Creating Bastion Security Group
       ec2_group:
-        name:  "External SSH Access"
-        description: "Bastion"
+        name:  "Bastion-sg"
+        description: "Bastion-sg"
         vpc_id: "{{ vpc_id }}"
         region: "{{ aws_region }}"
         rules:
@@ -139,21 +152,107 @@ Playbook to create a VPC in AWS with public and private subnets
             from_port: 22
             to_port: 22
             cidr_ip: 0.0.0.0/0
-      register: my_main_sg
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+      register: bastion_sg
+
+    - name: Set Bastion Security Group ID in variable
+      set_fact:
+        bastion_sg_id: "{{ bastion_sg.group_id }}"
+
+    - name: Creating Webserver Security Group
+      ec2_group:
+        name:  "Webserver-sg"
+        description: "Webserver-sg"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ aws_region }}"
+        rules:
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0
+          - proto: tcp
+            from_port: 443
+            to_port: 443
+            cidr_ip: 0.0.0.0/0
+          - proto: "tcp"
+            from_port: "22"
+            to_port: "22"
+            group_id: "{{ bastion_sg_id }}"
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+
+      register: webserver_sg
 
     - name: Set Main Security Group ID in variable
       set_fact:
-        main_sg_id: "{{ my_main_sg.group_id }}"
+        webserver_sg_id: "{{ webserver_sg.group_id }}"
 
-    - name: Creating Private Security Group
+    - name: Creating Database Server Security Group
       ec2_group:
-        name: "Private Instances SG"
-        description: "Private Instances SG"
+        name: "DB-Server-sg"
+        description: "DataBase Server-sg"
         vpc_id: "{{ vpc_id }}"
         region: "{{ aws_region }}"
         rules:
           - proto: "tcp"
             from_port: "22"
             to_port: "22"
-            group_id: "{{ main_sg_id }}"
+            group_id: "{{ bastion_sg_id }}"
+          - proto: "tcp"
+            from_port: 3306
+            to_port: 3306
+            group_id: "{{ webserver_sg_id }}"
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+
+    - name: "Launching Webserver Instance"
+      ec2:
+        instance_type: "{{ instance_type }}"
+        key_name: "{{ keypair }}"
+        image: "{{ image }}"
+        region: "{{ aws_region }}"
+        group: Webserver-sg
+        vpc_subnet_id: "{{ public_subnet_az1_id }}"
+        wait: yes
+        count_tag:
+          Name: Webserver
+        instance_tags:
+          Name: Webserver
+        exact_count: "{{ exact_count }}"
+
+    - name: "Launching Bastion Instance"
+      ec2:
+        instance_type: "{{ instance_type }}"
+        key_name: "{{ keypair }}"
+        image: "{{ image }}"
+        region: "{{ aws_region }}"
+        group: Bastion-sg
+        vpc_subnet_id: "{{ public_subnet_az2_id }}"
+        wait: yes
+        count_tag:
+          Name: Bastion
+        instance_tags:
+          Name: Bastion
+        exact_count: "{{ exact_count }}"
+
+    - name: "Launching Database Instance"
+      ec2:
+        instance_type: "{{ instance_type }}"
+        key_name: "{{ keypair }}"
+        image: "{{ image }}"
+        region: "{{ aws_region }}"
+        group: DB-Server-sg
+        vpc_subnet_id: "{{ private_subnet_az3_id }}"
+        wait: yes
+        count_tag:
+          Name: DB-Server
+        instance_tags:
+          Name: DB-Server
+        exact_count: "{{ exact_count }}"
 ```
+
+
