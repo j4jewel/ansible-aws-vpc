@@ -25,7 +25,9 @@
     instance_type: t2.micro
     image: ami-0b898040803850657
     keypair: jwl-pc
-    exact_count: 1
+    bastion_exact_count: 1
+    webserver_exact_count: 1
+    dbserver_exact_count: 1
 
   tasks:
 
@@ -222,7 +224,7 @@
           Name: Webserver
         instance_tags:
           Name: Webserver
-        exact_count: "{{ exact_count }}"
+        exact_count: "{{ webserver_exact_count }}"
 
     - name: "Launching Bastion Instance"
       ec2:
@@ -237,7 +239,7 @@
           Name: Bastion
         instance_tags:
           Name: Bastion
-        exact_count: "{{ exact_count }}"
+        exact_count: "{{ bastion_exact_count }}"
 
     - name: "Launching Database Instance"
       ec2:
@@ -252,7 +254,7 @@
           Name: DB-Server
         instance_tags:
           Name: DB-Server
-        exact_count: "{{ exact_count }}"
+        exact_count: "{{ dbserver_exact_count }}"
 ```
 ---
 
