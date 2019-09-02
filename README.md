@@ -219,6 +219,7 @@
         region: "{{ aws_region }}"
         group: Webserver-sg
         vpc_subnet_id: "{{ public_subnet_az1_id }}"
+        assign_public_ip: yes
         wait: yes
         count_tag:
           Name: Webserver
@@ -234,6 +235,7 @@
         region: "{{ aws_region }}"
         group: Bastion-sg
         vpc_subnet_id: "{{ public_subnet_az2_id }}"
+        assign_public_ip: yes
         wait: yes
         count_tag:
           Name: Bastion
